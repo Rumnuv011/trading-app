@@ -4,8 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Trading Predictivo Pro</title>
-  <!-- Manifest sin referencia a icono -->
-  <link rel="manifest" href="manifest.json">
+  <!-- Eliminada referencia problemática al manifest -->
   <meta name="theme-color" content="#333">
   <style>
     :root {
@@ -86,7 +85,7 @@
   <div class="card">
     <h2>➕ Agregar Producto</h2>
     <input type="text" id="nuevoProducto" placeholder="Ej: Bitcoin">
-    <button onclick="agregarProducto()">Agregar</button>
+    <button id="btnAgregarProducto">Agregar</button>
     <p id="error-producto" class="rojo" style="display:none;"></p>
   </div>
 
@@ -102,7 +101,7 @@
       </thead>
       <tbody></tbody>
     </table>
-    <button onclick="guardarPrecios()">💾 Guardar Datos</button>
+    <button id="btnGuardarPrecios">💾 Guardar Datos</button>
     <p id="error-precios" class="rojo" style="display:none;"></p>
   </div>
 
@@ -122,7 +121,6 @@
     </table>
   </div>
 
-  <!-- Script principal corregido -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // ======================
@@ -142,7 +140,6 @@
       try {
         document.getElementById('status').textContent = "Conectando...";
         
-        // 1. Intenta cargar desde Supabase
         const { data, error } = await supabase
           .from('trading_data')
           .select('*')
@@ -150,42 +147,39 @@
           .single();
 
         if (error) throw error;
-
-        // 2. Si existe, usa esos datos
+        
         if (data) {
           productos = data.productos || [];
           historial = data.historial || [];
           document.getElementById('status').textContent = `Datos cargados (${productos.length} productos)`;
-        } 
-        // 3. Si no existe, crea datos iniciales
-        else {
+        } else {
+          await inicializarDatos();
+        }
+        
+        mostrarTablaEntrada();
+        mostrarHistorial();
+        mostrarPredicciones();
+        
+      } catch (error) {
+        console.error("Error:", error);
+        document.getElementById('status').textContent = "Modo offline - usando datos locales";
+        if (productos.length === 0) {
           productos = ['Bitcoin', 'Ethereum'];
           historial = [
             {'Bitcoin': {precio: 50000, color: 'rojo', fecha: new Date().toISOString().split('T')[0]}},
             {'Ethereum': {precio: 3000, color: 'azul', fecha: new Date().toISOString().split('T')[0]}}
           ];
-          await guardarDatos();
-        }
-
-        // 4. Actualiza la interfaz
-        mostrarTablaEntrada();
-        mostrarHistorial();
-        mostrarPredicciones();
-
-      } catch (error) {
-        console.error("Error cargando datos:", error);
-        document.getElementById('status').textContent = "Error al cargar. Usando datos locales.";
-        
-        // Datos de emergencia
-        if (productos.length === 0) {
-          productos = ['Bitcoin', 'Ethereum'];
-          historial = [
-            {'Bitcoin': {precio: 50000, color: 'rojo'}},
-            {'Ethereum': {precio: 3000, color: 'azul'}}
-          ];
-          mostrarTablaEntrada();
         }
       }
+    }
+
+    async function inicializarDatos() {
+      productos = ['Bitcoin', 'Ethereum'];
+      historial = [
+        {'Bitcoin': {precio: 50000, color: 'rojo', fecha: new Date().toISOString().split('T')[0]}},
+        {'Ethereum': {precio: 3000, color: 'azul', fecha: new Date().toISOString().split('T')[0]}}
+      ];
+      await guardarDatos();
     }
 
     async function guardarDatos() {
@@ -415,25 +409,21 @@
     }
 
     // ======================
-    // INICIALIZACIÓN
+    // INICIALIZACIÓN SEGURA
     // ======================
     document.addEventListener('DOMContentLoaded', () => {
-      cargarDatos();
+      // Configuración de eventos
+      document.getElementById('btnAgregarProducto').addEventListener('click', agregarProducto);
+      document.getElementById('btnGuardarPrecios').addEventListener('click', guardarPrecios);
       
-      // Evento para Enter en agregar producto
-      document.getElementById('nuevoProducto')?.addEventListener('keypress', (e) => {
+      // Permitir Enter para agregar producto
+      document.getElementById('nuevoProducto').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') agregarProducto();
       });
+      
+      // Carga inicial
+      cargarDatos();
     });
-
-    // Service Worker opcional (comentado)
-    /*
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js')
-        .then(() => console.log('SW registrado'))
-        .catch(err => console.log('SW error:', err));
-    }
-    */
   </script>
 </body>
 </html>
