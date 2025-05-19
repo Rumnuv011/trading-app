@@ -86,6 +86,7 @@
     <h2>➕ Agregar Producto</h2>
     <input type="text" id="nuevoProducto" placeholder="Ej: Bitcoin">
     <button onclick="agregarProducto()">Agregar</button>
+    <p id="error-producto" class="rojo" style="display:none;"></p>
   </div>
 
   <div class="card">
@@ -101,6 +102,7 @@
       <tbody></tbody>
     </table>
     <button onclick="guardarPrecios()">💾 Guardar Datos</button>
+    <p id="error-precios" class="rojo" style="display:none;"></p>
   </div>
 
   <div class="card" id="predicciones">
@@ -125,32 +127,32 @@
     // CONFIGURACIÓN INICIAL
     // ======================
     const supabaseUrl = 'https://gqklptrsaqcahaqyndin.supabase.co
-'; // REEMPLAZAR
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdxa2xwdHJzYXFjYWhhcXluZGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NzU2NDYsImV4cCI6MjA2MzI1MTY0Nn0.3uV34aEGl1v3JIrDVVe0_u1fGpOuJDtHgZfD2jrX4WE'; // REEMPLAZAR
+'; // REEMPLAZA
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdxa2xwdHJzYXFjYWhhcXluZGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NzU2NDYsImV4cCI6MjA2MzI1MTY0Nn0.3uV34aEGl1v3JIrDVVe0_u1fGpOuJDtHgZfD2jrX4WE'; // REEMPLAZA
     const supabase = supabase.createClient(supabaseUrl, supabaseKey);
     
     let productos = [];
     let historial = [];
 
     // ======================
-    // FUNCIONES PRINCIPALES
+    // FUNCIONES PRINCIPALES (CORREGIDAS)
     // ======================
     async function cargarDatos() {
       try {
-        document.getElementById('status').textContent = "Conectando a la base de datos...";
+        document.getElementById('status').textContent = "Conectando...";
         
         const { data, error } = await supabase
           .from('trading_data')
           .select('*')
           .eq('id', 1)
           .single();
-        
+
         if (error) throw error;
         
         if (data) {
           productos = data.productos || [];
           historial = data.historial || [];
-          document.getElementById('status').textContent = `Datos cargados (${productos.length} productos)`;
+          document.getElementById('status').textContent = `Datos cargados (${new Date().toLocaleTimeString()})`;
         } else {
           await inicializarDatos();
         }
@@ -160,9 +162,8 @@
         mostrarPredicciones();
         
       } catch (error) {
-        console.error("Error al cargar:", error);
-        document.getElementById('status').textContent = "Modo offline (datos locales)";
-        
+        console.error("Error:", error);
+        document.getElementById('status').textContent = "Modo offline - usando datos locales";
         // Datos de ejemplo si falla la conexión
         if (productos.length === 0) {
           productos = ['Bitcoin', 'Ethereum'];
@@ -170,9 +171,6 @@
             {'Bitcoin': {precio: 50000, color: 'rojo'}},
             {'Ethereum': {precio: 3000, color: 'azul'}}
           ];
-          mostrarTablaEntrada();
-          mostrarHistorial();
-          mostrarPredicciones();
         }
       }
     }
@@ -193,11 +191,11 @@
           .upsert({
             id: 1,
             productos: productos,
-            historial: historial.slice(-30) // Guarda solo últimos 30 días
+            historial: historial
           }, { onConflict: 'id' });
         
         if (error) throw error;
-        console.log("Datos guardados correctamente");
+        console.log("Datos guardados en Supabase");
       } catch (error) {
         console.error("Error al guardar:", error);
         throw error;
@@ -205,23 +203,23 @@
     }
 
     // ======================
-    // FUNCIONES DE INTERFAZ
+    // FUNCIONES DE INTERFAZ (MEJORADAS)
     // ======================
     function mostrarTablaEntrada() {
       const tbody = document.querySelector("#input-table tbody");
       tbody.innerHTML = "";
       
       productos.forEach(producto => {
-        const tr = document.createElement("tr");
         const ultimoRegistro = [...historial].reverse().find(d => d[producto]);
         const ultimoPrecio = ultimoRegistro ? ultimoRegistro[producto].precio : "";
         
+        const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${producto}</td>
-          <td><input type="number" id="precio-${producto}" placeholder="${ultimoPrecio}" min="0.01" step="0.01" value="${ultimoPrecio || ''}"></td>
+          <td><input type="number" id="precio-${producto}" placeholder="${ultimoPrecio}" step="0.01" min="0"></td>
           <td>
             <select id="color-${producto}">
-              <option value="rojo" ${ultimoRegistro && ultimoRegistro[producto].color === 'rojo' ? 'selected' : ''}>🔴 Subida</option>
+              <option value="rojo">🔴 Subida</option>
               <option value="blanco" ${!ultimoRegistro || ultimoRegistro[producto].color === 'blanco' ? 'selected' : ''}>⚪ Igual</option>
               <option value="azul" ${ultimoRegistro && ultimoRegistro[producto].color === 'azul' ? 'selected' : ''}>🔵 Bajada</option>
             </select>
@@ -232,35 +230,42 @@
     }
 
     async function guardarPrecios() {
+      const errorElement = document.getElementById("error-precios");
+      errorElement.style.display = "none";
+      
       const nuevoDia = {};
       let datosCompletos = true;
       
       productos.forEach(producto => {
-        const precio = document.getElementById(`precio-${producto}`).value;
+        const precioInput = document.getElementById(`precio-${producto}`);
+        const precio = precioInput.value;
         const color = document.getElementById(`color-${producto}`).value;
         
         if (!precio) {
-          alert(`Debes ingresar el precio para ${producto}`);
+          errorElement.textContent = `Falta el precio para ${producto}`;
+          errorElement.style.display = "block";
+          precioInput.focus();
           datosCompletos = false;
           return;
         }
         
         nuevoDia[producto] = {
           precio: parseFloat(precio),
-          color: color
+          color: color,
+          fecha: new Date().toISOString().split('T')[0] // Añade fecha
         };
       });
       
       if (!datosCompletos) return;
       
       try {
-        document.getElementById('status').textContent = "Guardando datos...";
         historial.push(nuevoDia);
         await guardarDatos();
         
         mostrarHistorial();
         mostrarPredicciones();
         
+        // Limpiar campos
         productos.forEach(producto => {
           document.getElementById(`precio-${producto}`).value = "";
           document.getElementById(`color-${producto}`).value = "rojo";
@@ -269,129 +274,28 @@
         document.getElementById('status').textContent = "Datos guardados correctamente";
         
       } catch (error) {
-        console.error("Error al guardar:", error);
-        document.getElementById('status').textContent = "Error al guardar datos";
+        console.error("Error:", error);
+        errorElement.textContent = "Error al guardar. Intenta nuevamente.";
+        errorElement.style.display = "block";
         historial.pop();
-      }
-    }
-
-    function mostrarHistorial() {
-      const thead = document.querySelector("#history-table thead");
-      const tbody = document.querySelector("#history-table tbody");
-      
-      thead.innerHTML = `<tr><th>Día</th>${productos.map(p => `<th>${p}</th>`).join("")}</tr>`;
-      tbody.innerHTML = "";
-      
-      historial.forEach((dia, index) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${index + 1}</td>
-          ${productos.map(producto => {
-            const item = dia[producto];
-            if (!item) return `<td>-</td>`;
-            
-            let clase = "";
-            let emoji = "";
-            if (item.color === 'rojo') {
-              clase = "rojo";
-              emoji = "🔴";
-            } else if (item.color === 'azul') {
-              clase = "azul";
-              emoji = "🔵";
-            } else {
-              emoji = "⚪";
-            }
-            
-            return `<td class="${clase}">${item.precio} ${emoji}</td>`;
-          }).join("")}
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function mostrarPredicciones() {
-      const contenedor = document.getElementById("predicciones");
-      contenedor.innerHTML = "<h2>🔮 Predicciones (30 días)</h2>";
-      
-      productos.forEach(producto => {
-        const prediccion = predecirMercado(producto);
-        const datos = historial.map(d => d[producto]).filter(Boolean);
-        const ultimo = datos[datos.length - 1];
-        
-        const div = document.createElement("div");
-        div.className = prediccion?.señal?.includes("subida") ? "señal-compra" : 
-                        prediccion?.señal?.includes("bajada") ? "señal-venta" : "";
-        
-        div.innerHTML = `
-          <h3>${producto}</h3>
-          ${ultimo ? `
-            <p>💰 Precio actual: <b>${ultimo.precio}</b> 
-            <span class="${ultimo.color === 'rojo' ? 'rojo' : ultimo.color === 'azul' ? 'azul' : ''}">
-              ${ultimo.color === 'rojo' ? '🔴' : ultimo.color === 'azul' ? '🔵' : '⚪'}
-            </span></p>
-          ` : ''}
-          ${prediccion && !prediccion.error ? `
-            <p>🔮 Predicción mañana: <b>${prediccion.prediccion}</b></p>
-            <p>📊 Tendencia: <b>${prediccion.tendencia}</b></p>
-            <p>🌀 Volatilidad: <b>${prediccion.volatilidad}</b></p>
-            ${prediccion.señal ? `<p>📢 ${prediccion.señal}</p>` : ''}
-          ` : '<p>⚠️ ' + (prediccion?.error || 'Datos insuficientes') + '</p>'}
-        `;
-        contenedor.appendChild(div);
-      });
-    }
-
-    function predecirMercado(producto) {
-      const datos = historial
-        .filter(dia => dia[producto])
-        .map(dia => dia[producto])
-        .slice(-30);
-      
-      if (datos.length < 5) return { error: "Se necesitan al menos 5 días de datos" };
-
-      try {
-        // Cálculo de tendencia
-        const cambios = [];
-        for (let i = 1; i < datos.length; i++) {
-          cambios.push((datos[i].precio - datos[i-1].precio) / datos[i-1].precio);
-        }
-        const tendencia = cambios.reduce((sum, val) => sum + val, 0) / cambios.length;
-        
-        // Cálculo de volatilidad
-        const volatilidad = Math.sqrt(
-          cambios.map(x => Math.pow(x - tendencia, 2)).reduce((a, b) => a + b) / cambios.length
-        );
-        
-        // Detección de patrones
-        const ultimosColores = datos.slice(-5).map(d => d.color);
-        const rojosConsecutivos = ultimosColores.filter(c => c === 'rojo').length;
-        const azulesConsecutivos = ultimosColores.filter(c => c === 'azul').length;
-        
-        return {
-          prediccion: Math.round(datos[datos.length-1].precio * (1 + tendencia)),
-          tendencia: tendencia > 0 ? '📈 Alcista' : '📉 Bajista',
-          volatilidad: (volatilidad * 100).toFixed(2) + '%',
-          señal: rojosConsecutivos >= 3 ? '🔴 Señal fuerte de subida' :
-                 azulesConsecutivos >= 3 ? '🔵 Señal fuerte de bajada' :
-                 '➡️ Neutral'
-        };
-      } catch (error) {
-        console.error("Error en predicción:", error);
-        return { error: "Error al calcular predicción" };
       }
     }
 
     async function agregarProducto() {
       const input = document.getElementById("nuevoProducto");
       const nombre = input.value.trim();
+      const errorElement = document.getElementById("error-producto");
+      errorElement.style.display = "none";
       
       if (!nombre) {
-        alert("Debe ingresar un nombre válido");
+        errorElement.textContent = "Debe ingresar un nombre válido";
+        errorElement.style.display = "block";
         return;
       }
       
       if (productos.includes(nombre)) {
-        alert("Este producto ya existe");
+        errorElement.textContent = "Este producto ya existe";
+        errorElement.style.display = "block";
         return;
       }
 
@@ -401,7 +305,7 @@
         
         // Crear registro inicial en el historial
         const nuevoRegistro = {};
-        nuevoRegistro[nombre] = {precio: 0, color: 'blanco'};
+        nuevoRegistro[nombre] = {precio: 0, color: 'blanco', fecha: new Date().toISOString().split('T')[0]};
         historial.push(nuevoRegistro);
         
         await guardarDatos();
@@ -414,11 +318,108 @@
         document.getElementById('status').textContent = `"${nombre}" agregado correctamente`;
         
       } catch (error) {
-        console.error("Error al agregar:", error);
-        document.getElementById('status').textContent = "Error al agregar producto";
+        console.error("Error:", error);
+        errorElement.textContent = "Error al agregar producto. Intenta nuevamente.";
+        errorElement.style.display = "block";
         productos = productos.filter(p => p !== nombre);
         historial.pop();
       }
+    }
+
+    // ======================
+    // SISTEMA PREDICTIVO (OPTIMIZADO)
+    // ======================
+    function predecirMercado(producto) {
+      const datos = historial
+        .filter(dia => dia[producto])
+        .map(dia => dia[producto]);
+      
+      if (datos.length < 5) return null;
+
+      try {
+        // Cálculo de tendencia basado en los últimos 7 días
+        const ultimos7 = datos.slice(-7);
+        const cambios = ultimos7.map((d, i) => 
+          i > 0 ? (d.precio - ultimos7[i-1].precio) / ultimos7[i-1].precio : 0
+        ).slice(1);
+        
+        const tendencia = cambios.reduce((sum, val) => sum + val, 0) / cambios.length;
+        const volatilidad = Math.sqrt(cambios.map(x => Math.pow(x - tendencia, 2)).reduce((a, b) => a + b) / cambios.length;
+        
+        // Señal basada en tendencia reciente
+        let señal = "➡️ Neutral";
+        if (tendencia > 0.05) señal = "🟢 Tendencia alcista";
+        else if (tendencia < -0.05) señal = "🔴 Tendencia bajista";
+        
+        return {
+          prediccion: Math.round(datos[datos.length-1].precio * (1 + tendencia)),
+          tendencia: tendencia > 0 ? '📈 Alcista' : '📉 Bajista',
+          volatilidad: (volatilidad * 100).toFixed(2) + '%',
+          señal: señal
+        };
+      } catch (error) {
+        console.error("Error en predicción:", error);
+        return null;
+      }
+    }
+
+    function mostrarPredicciones() {
+      const contenedor = document.getElementById("predicciones");
+      contenedor.innerHTML = "<h2>🔮 Predicciones (7 días)</h2>";
+      
+      if (productos.length === 0) {
+        contenedor.innerHTML += "<p>No hay productos registrados</p>";
+        return;
+      }
+      
+      productos.forEach(producto => {
+        const prediccion = predecirMercado(producto);
+        const ultimo = [...historial].reverse().find(d => d[producto])?.[producto];
+        
+        if (!ultimo) return;
+        
+        const div = document.createElement("div");
+        div.className = prediccion?.señal.includes("alcista") ? "señal-compra" : 
+                        prediccion?.señal.includes("bajista") ? "señal-venta" : "";
+        
+        div.innerHTML = `
+          <h3>${producto}</h3>
+          <p>💰 Precio actual: <b>${ultimo.precio}</b> 
+          <span class="${ultimo.color === 'rojo' ? 'rojo' : ultimo.color === 'azul' ? 'azul' : ''}">
+            ${ultimo.color === 'rojo' ? '🔴' : ultimo.color === 'azul' ? '🔵' : '⚪'}
+          </span></p>
+          ${prediccion ? `
+            <p>🔮 Predicción mañana: <b>${prediccion.prediccion}</b></p>
+            <p>📊 Tendencia: <b>${prediccion.tendencia}</b></p>
+            <p>📢 ${prediccion.señal}</p>
+          ` : '<p>⚠️ Necesitas más datos para predicciones</p>'}
+        `;
+        contenedor.appendChild(div);
+      });
+    }
+
+    function mostrarHistorial() {
+      const thead = document.querySelector("#history-table thead");
+      const tbody = document.querySelector("#history-table tbody");
+      
+      thead.innerHTML = `<tr><th>Fecha</th>${productos.map(p => `<th>${p}</th>`).join("")}</tr>`;
+      tbody.innerHTML = "";
+      
+      historial.slice().reverse().forEach((dia, index) => {
+        const fecha = dia[productos[0]]?.fecha || `Día ${historial.length - index}`;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${fecha}</td>
+          ${productos.map(producto => {
+            const item = dia[producto];
+            if (!item) return `<td>-</td>`;
+            
+            const tendencia = item.color === 'rojo' ? '🔴' : item.color === 'azul' ? '🔵' : '⚪';
+            return `<td>${item.precio} ${tendencia}</td>`;
+          }).join("")}
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
     // ======================
