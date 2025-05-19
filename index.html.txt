@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trading Predictivo Pro</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#333">
+  <style>
+    :root {
+      --rojo: #d9534f; --azul: #337ab7; --verde: #5cb85c;
+      --amarillo: #f0ad4e; --gris: #333; 
+      --fondo: #f0f2f5; --blanco: #fff;
+      --sombra: 0 4px 10px rgba(0,0,0,0.08);
+    }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0; padding: 1rem;
+      background-color: var(--fondo);
+      max-width: 800px;
+      margin: auto;
+    }
+    .card {
+      background: var(--blanco);
+      border-radius: 10px;
+      box-shadow: var(--sombra);
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      width: 100%;
+      padding: 0.8rem;
+      background: var(--gris);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    /* Estilos responsive */
+    @media (max-width: 600px) {
+      body { padding: 0.5rem; }
+      .card { padding: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>📈 Trading Predictivo Pro</h1>
+    <p id="status">Conectando a la nube...</p>
+  </div>
+
+  <!-- Sección de productos -->
+  <div class="card">
+    <h2>➕ Agregar Producto</h2>
+    <input type="text" id="nuevoProducto" placeholder="Ej: Bitcoin">
+    <button onclick="agregarProducto()">Agregar</button>
+  </div>
+
+  <!-- Sección de predicciones -->
+  <div class="card" id="predicciones">
+    <h2>🔮 Predicciones Hoy</h2>
+  </div>
+
+  <!-- Tabla de historial -->
+  <div class="card">
+    <h2>📊 Historial</h2>
+    <div id="historial-container"></div>
+  </div>
+
+  <!-- Usamos Supabase en lugar de Firebase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Configura Supabase (REMPLAZA CON TUS DATOS)
+    const supabaseUrl = 'https://gqklptrsaqcahaqyndin.supabase.co
+';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdxa2xwdHJzYXFjYWhhcXluZGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NzU2NDYsImV4cCI6MjA2MzI1MTY0Nn0.3uV34aEGl1v3JIrDVVe0_u1fGpOuJDtHgZfD2jrX4WE';
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    // Variables globales (igual que antes)
+    let productos = [];
+    let historial = [];
+
+    // Cargar datos desde Supabase
+    async function cargarDatos() {
+      try {
+        const { data, error } = await supabase
+          .from('trading_data')
+          .select('*')
+          .eq('id', 1) // Usamos ID fijo para esta app
+          .single();
+
+        if (data) {
+          productos = data.productos || ['Bitcoin', 'Ethereum'];
+          historial = data.historial || [
+            { 'Bitcoin': { precio: 50000, color: 'verde' } },
+            { 'Ethereum': { precio: 3000, color: 'rojo' } }
+          ];
+          document.getElementById('status').textContent = `Sincronizado: ${new Date().toLocaleTimeString()}`;
+        } else {
+          // Si no hay datos, creamos unos iniciales
+          await guardarDatos();
+        }
+        renderizarApp();
+      } catch (error) {
+        console.error("Error cargando datos:", error);
+        document.getElementById('status').textContent = "Modo offline (usando datos locales)";
+      }
+    }
+
+    // Guardar en Supabase
+    async function guardarDatos() {
+      try {
+        const { error } = await supabase
+          .from('trading_data')
+          .upsert({
+            id: 1,
+            productos: productos,
+            historial: historial
+          });
+        
+        if (error) throw error;
+        console.log("Datos guardados en la nube!");
+      } catch (error) {
+        console.error("Error al guardar:", error);
+        // Podríamos añadir aquí un sistema de caché local
+      }
+    }
+
+    // Funcionalidad de la app (IGUAL QUE ANTES)
+    async function agregarProducto() {
+      const nombre = document.getElementById('nuevoProducto').value.trim();
+      if (nombre && !productos.includes(nombre)) {
+        productos.push(nombre);
+        await guardarDatos();
+        document.getElementById('nuevoProducto').value = '';
+        renderizarApp();
+      }
+    }
+
+    function predecirMercado(producto) {
+      const cambios = historial
+        .filter(item => item[producto])
+        .map(item => item[producto].precio)
+        .slice(-5);
+      
+      if (cambios.length < 3) return null;
+
+      const tendencia = (cambios[cambios.length-1] - cambios[0]) / cambios[0];
+      return {
+        prediccion: Math.round(cambios[cambios.length-1] * (1 + tendencia)),
+        tendencia: tendencia > 0 ? '📈 Alcista' : '📉 Bajista'
+      };
+    }
+
+    function renderizarApp() {
+      // Renderizar predicciones
+      const contenedorPred = document.getElementById('predicciones');
+      contenedorPred.innerHTML = '<h2>🔮 Predicciones Hoy</h2>';
+      
+      productos.forEach(producto => {
+        const prediccion = predecirMercado(producto);
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `
+          <h3>${producto}</h3>
+          ${prediccion ? `
+            <p>Predicción: <strong>${prediccion.prediccion || 'N/A'}</strong></p>
+            <p>Tendencia: ${prediccion.tendencia}</p>
+          ` : '<p>No hay suficientes datos</p>'}
+        `;
+        contenedorPred.appendChild(div);
+      });
+
+      // Renderizar historial
+      const contenedorHist = document.getElementById('historial-container');
+      contenedorHist.innerHTML = `
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Último Precio</th>
+              <th>Color</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${productos.map(p => `
+              <tr>
+                <td>${p}</td>
+                <td>
+                  ${historial.length > 0 && historial[historial.length-1][p] ? 
+                    historial[historial.length-1][p].precio : 'N/A'}
+                </td>
+                <td style="color: ${
+                  historial.length > 0 && historial[historial.length-1][p] ? 
+                  (historial[historial.length-1][p].color === 'verde' ? 'var(--verde)' : 'var(--rojo)') : 'gray'
+                }">
+                  ${historial.length > 0 && historial[historial.length-1][p] ? 
+                    (historial[historial.length-1][p].color === 'verde' ? '🟢' : '🔴') : '⚪'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // Iniciar app
+    document.addEventListener('DOMContentLoaded', cargarDatos);
+
+    // Service Worker para PWA (más simple)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(() => console.log('SW registrado'))
+        .catch(err => console.log('SW error:', err));
+    }
+  </script>
+</body>
+</html>
