@@ -2,10 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Trading Predictivo Pro</title>
-  <!-- Eliminada referencia problemática al manifest -->
-  <meta name="theme-color" content="#333">
   <style>
     :root {
       --rojo: #d9534f; --azul: #337ab7; --verde: #5cb85c;
@@ -121,157 +119,114 @@
     </table>
   </div>
 
+  <!-- Script de Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- Script de la aplicación -->
   <script>
     // ======================
-    // CONFIGURACIÓN INICIAL
+    // CONFIGURACIÓN SUPABASE
     // ======================
-    const supabaseUrl = 'https://gqklptrsaqcahaqyndin.supabase.co
-'; // REEMPLAZA
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdxa2xwdHJzYXFjYWhhcXluZGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NzU2NDYsImV4cCI6MjA2MzI1MTY0Nn0.3uV34aEGl1v3JIrDVVe0_u1fGpOuJDtHgZfD2jrX4WE'; // REEMPLAZA
+    const supabaseUrl = 'https://gqklptrsaqcahaqyndin.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdxa2xwdHJzYXFjYWhhcXluZGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NzU2NDYsImV4cCI6MjA2MzI1MTY0Nn0.3uV34aEGl1v3JIrDVVe0_u1fGpOuJDtHgZfD2jrX4WE';
     const supabase = supabase.createClient(supabaseUrl, supabaseKey);
-    
-    let productos = [];
-    let historial = [];
 
     // ======================
     // FUNCIONES PRINCIPALES
     // ======================
     async function cargarDatos() {
       try {
-        document.getElementById('status').textContent = "Conectando...";
+        document.getElementById('status').textContent = "Cargando datos...";
         
-        const { data, error } = await supabase
-          .from('trading_data')
+        // 1. Cargar productos
+        const { data: productos, error: errorProductos } = await supabase
+          .from('productos')
+          .select('nombre');
+        
+        if (errorProductos) throw errorProductos;
+
+        // 2. Cargar historial (últimos 30 días)
+        const { data: registros, error: errorHistorial } = await supabase
+          .from('historial')
           .select('*')
-          .eq('id', 1)
-          .single();
+          .order('fecha', { ascending: false })
+          .limit(30);
+        
+        if (errorHistorial) throw errorHistorial;
 
-        if (error) throw error;
-        
-        if (data) {
-          productos = data.productos || [];
-          historial = data.historial || [];
-          document.getElementById('status').textContent = `Datos cargados (${productos.length} productos)`;
-        } else {
-          await inicializarDatos();
-        }
-        
-        mostrarTablaEntrada();
-        mostrarHistorial();
-        mostrarPredicciones();
-        
+        // 3. Formatear datos
+        const historial = {};
+        registros.forEach(item => {
+          if (!historial[item.fecha]) historial[item.fecha] = {};
+          historial[item.fecha][item.producto] = {
+            precio: item.precio,
+            color: item.color
+          };
+        });
+
+        document.getElementById('status').textContent = "Datos cargados correctamente";
+        return { 
+          productos: productos.map(p => p.nombre), 
+          historial 
+        };
+
       } catch (error) {
-        console.error("Error:", error);
-        document.getElementById('status').textContent = "Modo offline - usando datos locales";
-        if (productos.length === 0) {
-          productos = ['Bitcoin', 'Ethereum'];
-          historial = [
-            {'Bitcoin': {precio: 50000, color: 'rojo', fecha: new Date().toISOString().split('T')[0]}},
-            {'Ethereum': {precio: 3000, color: 'azul', fecha: new Date().toISOString().split('T')[0]}}
-          ];
-        }
-      }
-    }
-
-    async function inicializarDatos() {
-      productos = ['Bitcoin', 'Ethereum'];
-      historial = [
-        {'Bitcoin': {precio: 50000, color: 'rojo', fecha: new Date().toISOString().split('T')[0]}},
-        {'Ethereum': {precio: 3000, color: 'azul', fecha: new Date().toISOString().split('T')[0]}}
-      ];
-      await guardarDatos();
-    }
-
-    async function guardarDatos() {
-      try {
-        const { error } = await supabase
-          .from('trading_data')
-          .upsert({
-            id: 1,
-            productos: productos,
-            historial: historial
-          }, { onConflict: 'id' });
-        
-        if (error) throw error;
-        console.log("Datos guardados correctamente");
-      } catch (error) {
-        console.error("Error al guardar:", error);
+        console.error("Error cargando datos:", error);
+        document.getElementById('status').textContent = "Error cargando datos";
         throw error;
       }
-    }
-
-    function mostrarTablaEntrada() {
-      const tbody = document.querySelector("#input-table tbody");
-      if (!tbody) return;
-      
-      tbody.innerHTML = productos.map(producto => {
-        const ultimo = [...historial].reverse().find(d => d[producto])?.[producto];
-        return `
-          <tr>
-            <td>${producto}</td>
-            <td><input type="number" id="precio-${producto}" placeholder="${ultimo?.precio || ''}" step="0.01" min="0"></td>
-            <td>
-              <select id="color-${producto}">
-                <option value="rojo" ${(!ultimo || ultimo.color === 'rojo') ? 'selected' : ''}>🔴 Subida</option>
-                <option value="blanco" ${ultimo?.color === 'blanco' ? 'selected' : ''}>⚪ Igual</option>
-                <option value="azul" ${ultimo?.color === 'azul' ? 'selected' : ''}>🔵 Bajada</option>
-              </select>
-            </td>
-          </tr>
-        `;
-      }).join('');
     }
 
     async function guardarPrecios() {
       const errorElement = document.getElementById("error-precios");
       errorElement.style.display = "none";
       
-      const nuevoDia = {};
-      let datosCompletos = true;
-      
-      productos.forEach(producto => {
-        const precioInput = document.getElementById(`precio-${producto}`);
-        const precio = precioInput.value;
-        const color = document.getElementById(`color-${producto}`).value;
-        
-        if (!precio) {
-          errorElement.textContent = `Falta el precio para ${producto}`;
-          errorElement.style.display = "block";
-          precioInput.focus();
-          datosCompletos = false;
-          return;
-        }
-        
-        nuevoDia[producto] = {
-          precio: parseFloat(precio),
-          color: color,
-          fecha: new Date().toISOString().split('T')[0]
-        };
-      });
-      
-      if (!datosCompletos) return;
-      
       try {
-        historial.push(nuevoDia);
-        await guardarDatos();
+        const fechaHoy = new Date().toISOString().split('T')[0];
+        const { productos, historial } = await cargarDatos();
+        const inserts = [];
+
+        // 1. Recoger datos del formulario
+        for (const producto of productos) {
+          const precioInput = document.getElementById(`precio-${producto}`);
+          const colorSelect = document.getElementById(`color-${producto}`);
+          
+          if (!precioInput.value) {
+            throw new Error(`Falta precio para ${producto}`);
+          }
+
+          inserts.push({
+            producto: producto,
+            precio: parseFloat(precioInput.value),
+            color: colorSelect.value,
+            fecha: fechaHoy
+          });
+        }
+
+        // 2. Guardar en Supabase
+        const { error } = await supabase
+          .from('historial')
+          .insert(inserts);
+
+        if (error) throw error;
+
+        // 3. Actualizar interfaz
+        const newData = await cargarDatos();
+        mostrarTablaEntrada(newData.productos, newData.historial);
+        mostrarHistorial(newData.productos, newData.historial);
         
-        mostrarHistorial();
-        mostrarPredicciones();
+        // 4. Limpiar campos
+        limpiarCampos();
         
-        // Limpiar campos
-        productos.forEach(producto => {
-          document.getElementById(`precio-${producto}`).value = "";
-          document.getElementById(`color-${producto}`).value = "rojo";
-        });
-        
-        document.getElementById('status').textContent = "Datos guardados correctamente";
-        
+        document.getElementById('status').textContent = "¡Datos guardados correctamente!";
+        return true;
+
       } catch (error) {
-        console.error("Error:", error);
-        errorElement.textContent = "Error al guardar. Intenta nuevamente.";
+        console.error("Error guardando precios:", error);
+        errorElement.textContent = error.message;
         errorElement.style.display = "block";
-        historial.pop();
+        document.getElementById('status').textContent = "Error al guardar";
+        return false;
       }
     }
 
@@ -281,149 +236,115 @@
       const errorElement = document.getElementById("error-producto");
       errorElement.style.display = "none";
       
-      if (!nombre) {
-        errorElement.textContent = "Debe ingresar un nombre válido";
-        errorElement.style.display = "block";
-        return;
-      }
-      
-      if (productos.includes(nombre)) {
-        errorElement.textContent = "Este producto ya existe";
-        errorElement.style.display = "block";
-        return;
-      }
-
       try {
-        document.getElementById('status').textContent = "Agregando producto...";
-        productos.push(nombre);
+        if (!nombre) {
+          throw new Error("Debe ingresar un nombre válido");
+        }
+
+        // 1. Insertar en Supabase
+        const { error } = await supabase
+          .from('productos')
+          .insert([{ nombre: nombre }]);
+
+        if (error) throw error;
+
+        // 2. Recargar datos
+        const { productos, historial } = await cargarDatos();
+        mostrarTablaEntrada(productos, historial);
         
-        // Crear registro inicial
-        const nuevoRegistro = {};
-        nuevoRegistro[nombre] = {
-          precio: 0, 
-          color: 'blanco',
-          fecha: new Date().toISOString().split('T')[0]
-        };
-        historial.push(nuevoRegistro);
-        
-        await guardarDatos();
-        
-        mostrarTablaEntrada();
-        mostrarHistorial();
-        mostrarPredicciones();
-        
-        input.value = "";
+        // 3. Limpiar campo
+        input.value = '';
         document.getElementById('status').textContent = `"${nombre}" agregado correctamente`;
         
+        return true;
+
       } catch (error) {
-        console.error("Error:", error);
-        errorElement.textContent = "Error al agregar producto. Intenta nuevamente.";
+        console.error("Error agregando producto:", error);
+        errorElement.textContent = error.message;
         errorElement.style.display = "block";
-        productos = productos.filter(p => p !== nombre);
-        historial.pop();
+        document.getElementById('status').textContent = "Error al agregar producto";
+        return false;
       }
     }
 
-    function mostrarPredicciones() {
-      const contenedor = document.getElementById("predicciones");
-      contenedor.innerHTML = "<h2>🔮 Predicciones (30 días)</h2>";
-      
-      productos.forEach(producto => {
-        const prediccion = predecirMercado(producto);
-        const ultimo = [...historial].reverse().find(d => d[producto])?.[producto];
-        
-        if (!ultimo) return;
-        
-        const div = document.createElement("div");
-        div.className = prediccion?.señal.includes("subida") ? "señal-compra" : 
-                        prediccion?.señal.includes("bajada") ? "señal-venta" : "";
-        
-        div.innerHTML = `
-          <h3>${producto}</h3>
-          <p>💰 Precio actual: <b>${ultimo.precio}</b> 
-          <span class="${ultimo.color === 'rojo' ? 'rojo' : ultimo.color === 'azul' ? 'azul' : ''}">
-            ${ultimo.color === 'rojo' ? '🔴' : ultimo.color === 'azul' ? '🔵' : '⚪'}
-          </span></p>
-          ${prediccion ? `
-            <p>🔮 Predicción mañana: <b>${prediccion.prediccion}</b></p>
-            <p>📊 Tendencia: <b>${prediccion.tendencia}</b></p>
-            <p>📢 ${prediccion.señal}</p>
-          ` : '<p>⚠️ Necesitas más datos para predicciones</p>'}
+    // ======================
+    // FUNCIONES DE INTERFAZ
+    // ======================
+    function mostrarTablaEntrada(productos, historial) {
+      const tbody = document.querySelector("#input-table tbody");
+      tbody.innerHTML = productos.map(producto => {
+        const ultimo = Object.values(historial).find(dia => dia[producto]);
+        return `
+          <tr>
+            <td>${producto}</td>
+            <td><input type="number" id="precio-${producto}" 
+                 placeholder="${ultimo?.[producto]?.precio || ''}" 
+                 step="0.01" min="0"></td>
+            <td>
+              <select id="color-${producto}">
+                <option value="rojo" ${(!ultimo || ultimo[producto]?.color === 'rojo') ? 'selected' : ''}>🔴 Subida</option>
+                <option value="blanco" ${ultimo?.[producto]?.color === 'blanco' ? 'selected' : ''}>⚪ Igual</option>
+                <option value="azul" ${ultimo?.[producto]?.color === 'azul' ? 'selected' : ''}>🔵 Bajada</option>
+              </select>
+            </td>
+          </tr>
         `;
-        contenedor.appendChild(div);
-      });
+      }).join('');
     }
 
-    function mostrarHistorial() {
+    function mostrarHistorial(productos, historial) {
       const thead = document.querySelector("#history-table thead");
       const tbody = document.querySelector("#history-table tbody");
       
-      thead.innerHTML = `<tr><th>Fecha</th>${productos.map(p => `<th>${p}</th>`).join("")}</tr>`;
-      tbody.innerHTML = "";
+      thead.innerHTML = `<tr><th>Fecha</th>${productos.map(p => `<th>${p}</th>`).join('')}</tr>`;
       
-      historial.slice().reverse().forEach((dia, index) => {
-        const fecha = dia[productos[0]]?.fecha || `Registro ${index + 1}`;
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${fecha}</td>
-          ${productos.map(producto => {
-            const item = dia[producto];
-            if (!item) return `<td>-</td>`;
-            
-            const tendencia = item.color === 'rojo' ? '🔴' : item.color === 'azul' ? '🔵' : '⚪';
-            return `<td>${item.precio} ${tendencia}</td>`;
-          }).join("")}
-        `;
-        tbody.appendChild(tr);
+      tbody.innerHTML = Object.entries(historial)
+        .sort(([fechaA], [fechaB]) => new Date(fechaB) - new Date(fechaA))
+        .map(([fecha, datos]) => `
+          <tr>
+            <td>${fecha}</td>
+            ${productos.map(producto => {
+              const item = datos[producto];
+              return `<td>${item?.precio || '-'} ${item?.color === 'rojo' ? '🔴' : item?.color === 'azul' ? '🔵' : '⚪'}</td>`;
+            }).join('')}
+          </tr>
+        `).join('');
+    }
+
+    function limpiarCampos() {
+      document.querySelectorAll("#input-table input[type='number']").forEach(input => {
+        input.value = "";
       });
     }
 
-    function predecirMercado(producto) {
-      const datos = historial
-        .filter(dia => dia[producto])
-        .map(dia => dia[producto]);
-      
-      if (datos.length < 5) return null;
-
-      try {
-        // Cálculo de tendencia
-        const cambios = [];
-        for (let i = 1; i < datos.length; i++) {
-          cambios.push((datos[i].precio - datos[i-1].precio) / datos[i-1].precio);
-        }
-        const tendencia = cambios.reduce((sum, val) => sum + val, 0) / cambios.length;
-        
-        // Señal basada en tendencia
-        let señal = "➡️ Neutral";
-        if (tendencia > 0.03) señal = "🔴 Señal fuerte de subida";
-        else if (tendencia < -0.03) señal = "🔵 Señal fuerte de bajada";
-        
-        return {
-          prediccion: Math.round(datos[datos.length-1].precio * (1 + tendencia)),
-          tendencia: tendencia > 0 ? '📈 Alcista' : '📉 Bajista',
-          señal: señal
-        };
-      } catch (error) {
-        console.error("Error en predicción:", error);
-        return null;
-      }
-    }
-
     // ======================
-    // INICIALIZACIÓN SEGURA
+    // INICIALIZACIÓN
     // ======================
-    document.addEventListener('DOMContentLoaded', () => {
-      // Configuración de eventos
+    document.addEventListener('DOMContentLoaded', async () => {
+      // 1. Configurar eventos
       document.getElementById('btnAgregarProducto').addEventListener('click', agregarProducto);
       document.getElementById('btnGuardarPrecios').addEventListener('click', guardarPrecios);
-      
-      // Permitir Enter para agregar producto
       document.getElementById('nuevoProducto').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') agregarProducto();
       });
-      
-      // Carga inicial
-      cargarDatos();
+
+      // 2. Carga inicial
+      try {
+        const { productos, historial } = await cargarDatos();
+        mostrarTablaEntrada(productos, historial);
+        mostrarHistorial(productos, historial);
+      } catch (error) {
+        // Modo offline con datos de ejemplo
+        const productos = ['Bitcoin', 'Ethereum'];
+        const historial = {
+          [new Date().toISOString().split('T')[0]]: {
+            'Bitcoin': { precio: 50000, color: 'rojo' },
+            'Ethereum': { precio: 3000, color: 'azul' }
+          }
+        };
+        mostrarTablaEntrada(productos, historial);
+        mostrarHistorial(productos, historial);
+      }
     });
   </script>
 </body>
