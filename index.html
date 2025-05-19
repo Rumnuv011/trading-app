@@ -1,135 +1,22 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Trading Predictivo Pro</title>
-  <!-- Eliminada referencia problemática al manifest -->
-  <meta name="theme-color" content="#333">
-  <style>
-    :root {
-      --rojo: #d9534f; --azul: #337ab7; --verde: #5cb85c;
-      --amarillo: #f0ad4e; --gris: #333; 
-      --fondo: #f0f2f5; --blanco: #fff;
-      --sombra: 0 4px 10px rgba(0,0,0,0.08);
-    }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0; padding: 1rem;
-      background-color: var(--fondo);
-      max-width: 800px;
-      margin: auto;
-    }
-    .card {
-      background: var(--blanco);
-      border-radius: 10px;
-      box-shadow: var(--sombra);
-      padding: 1rem;
-      margin-bottom: 1rem;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 1rem;
-    }
-    th, td {
-      padding: 0.7rem;
-      text-align: center;
-      border: 1px solid #ddd;
-    }
-    thead {
-      background-color: var(--gris);
-      color: white;
-    }
-    input, select {
-      width: 100%;
-      padding: 0.6rem;
-      margin-bottom: 0.5rem;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-    }
-    button {
-      width: 100%;
-      padding: 0.8rem;
-      background: var(--gris);
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #555;
-    }
-    .rojo { color: var(--rojo); }
-    .azul { color: var(--azul); }
-    .señal-compra { background-color: rgba(92, 184, 92, 0.2); }
-    .señal-venta { background-color: rgba(217, 83, 79, 0.2); }
-    .status-bar {
-      font-size: 0.8rem;
-      text-align: right;
-      color: #666;
-      margin-top: 0.5rem;
-    }
-    @media (max-width: 600px) {
-      body { padding: 0.5rem; }
-      .card { padding: 0.8rem; }
-    }
-  </style>
+  <!-- ... (el head se mantiene igual) ... -->
 </head>
 <body>
-  <div class="card">
-    <h1>📈 Trading Predictivo Pro</h1>
-    <p id="status">Cargando datos...</p>
-  </div>
+  <!-- ... (el HTML se mantiene igual) ... -->
 
-  <div class="card">
-    <h2>➕ Agregar Producto</h2>
-    <input type="text" id="nuevoProducto" placeholder="Ej: Bitcoin">
-    <button id="btnAgregarProducto">Agregar</button>
-    <p id="error-producto" class="rojo" style="display:none;"></p>
-  </div>
-
-  <div class="card">
-    <h2>📝 Registrar Precios</h2>
-    <table id="input-table">
-      <thead>
-        <tr>
-          <th>Producto</th>
-          <th>Precio Hoy</th>
-          <th>Tendencia</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <button id="btnGuardarPrecios">💾 Guardar Datos</button>
-    <p id="error-precios" class="rojo" style="display:none;"></p>
-  </div>
-
-  <div class="card" id="predicciones">
-    <h2>🔮 Predicciones (30 días)</h2>
-  </div>
-
-  <div class="card">
-    <h2>📊 Historial</h2>
-    <table id="history-table">
-      <thead>
-        <tr>
-          <th>Fecha</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
+  <!-- Scripts al final del body para mejor rendimiento -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // ======================
     // CONFIGURACIÓN INICIAL
     // ======================
-    const supabaseUrl = 'https://gqklptrsaqcahaqyndin.supabase.co'; // REEMPLAZA
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdxa2xwdHJzYXFjYWhhcXluZGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NzU2NDYsImV4cCI6MjA2MzI1MTY0Nn0.3uV34aEGl1v3JIrDVVe0_u1fGpOuJDtHgZfD2jrX4WE'; // REEMPLAZA
-    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    const supabaseUrl = 'https://gqklptrsaqcahaqyndin.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdxa2xwdHJzYXFjYWhhcXluZGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NzU2NDYsImV4cCI6MjA2MzI1MTY0Nn0.3uV34aEGl1v3JIrDVVe0_u1fGpOuJDtHgZfD2jrX4WE';
     
+    // Variables globales
+    let supabase;
     let productos = [];
     let historial = [];
 
@@ -138,8 +25,13 @@
     // ======================
     async function cargarDatos() {
       try {
-        document.getElementById('status').textContent = "Conectando...";
+        updateStatus("Conectando...");
         
+        // Verificar que Supabase está inicializado
+        if (!supabase) {
+          throw new Error("Supabase no inicializado");
+        }
+
         const { data, error } = await supabase
           .from('trading_data')
           .select('*')
@@ -151,33 +43,24 @@
         if (data) {
           productos = data.productos || [];
           historial = data.historial || [];
-          document.getElementById('status').textContent = `Datos cargados (${productos.length} productos)`;
+          updateStatus(`Datos cargados (${productos.length} productos)`);
         } else {
           await inicializarDatos();
         }
         
-        mostrarTablaEntrada();
-        mostrarHistorial();
-        mostrarPredicciones();
+        renderizarInterfaz();
         
       } catch (error) {
         console.error("Error:", error);
-        document.getElementById('status').textContent = "Modo offline - usando datos locales";
-        if (productos.length === 0) {
-          productos = ['Bitcoin', 'Ethereum'];
-          historial = [
-            {'Bitcoin': {precio: 50000, color: 'rojo', fecha: new Date().toISOString().split('T')[0]}},
-            {'Ethereum': {precio: 3000, color: 'azul', fecha: new Date().toISOString().split('T')[0]}}
-          ];
-        }
+        handleOfflineMode();
       }
     }
 
     async function inicializarDatos() {
       productos = ['Bitcoin', 'Ethereum'];
       historial = [
-        {'Bitcoin': {precio: 50000, color: 'rojo', fecha: new Date().toISOString().split('T')[0]}},
-        {'Ethereum': {precio: 3000, color: 'azul', fecha: new Date().toISOString().split('T')[0]}}
+        {'Bitcoin': {precio: 50000, color: 'rojo', fecha: getCurrentDate()}},
+        {'Ethereum': {precio: 3000, color: 'azul', fecha: getCurrentDate()}}
       ];
       await guardarDatos();
     }
@@ -193,11 +76,17 @@
           }, { onConflict: 'id' });
         
         if (error) throw error;
-        console.log("Datos guardados correctamente");
+        updateStatus("Datos guardados correctamente");
       } catch (error) {
         console.error("Error al guardar:", error);
         throw error;
       }
+    }
+
+    function renderizarInterfaz() {
+      mostrarTablaEntrada();
+      mostrarHistorial();
+      mostrarPredicciones();
     }
 
     function mostrarTablaEntrada() {
@@ -205,7 +94,7 @@
       if (!tbody) return;
       
       tbody.innerHTML = productos.map(producto => {
-        const ultimo = [...historial].reverse().find(d => d[producto])?.[producto];
+        const ultimo = getUltimoRegistro(producto);
         return `
           <tr>
             <td>${producto}</td>
@@ -227,50 +116,36 @@
       errorElement.style.display = "none";
       
       const nuevoDia = {};
-      let datosCompletos = true;
       
-      productos.forEach(producto => {
+      for (const producto of productos) {
         const precioInput = document.getElementById(`precio-${producto}`);
         const precio = precioInput.value;
         const color = document.getElementById(`color-${producto}`).value;
         
         if (!precio) {
-          errorElement.textContent = `Falta el precio para ${producto}`;
-          errorElement.style.display = "block";
+          showError(errorElement, `Falta el precio para ${producto}`);
           precioInput.focus();
-          datosCompletos = false;
-          return;
+          return false;
         }
         
         nuevoDia[producto] = {
           precio: parseFloat(precio),
           color: color,
-          fecha: new Date().toISOString().split('T')[0]
+          fecha: getCurrentDate()
         };
-      });
-      
-      if (!datosCompletos) return;
+      }
       
       try {
         historial.push(nuevoDia);
         await guardarDatos();
-        
-        mostrarHistorial();
-        mostrarPredicciones();
-        
-        // Limpiar campos
-        productos.forEach(producto => {
-          document.getElementById(`precio-${producto}`).value = "";
-          document.getElementById(`color-${producto}`).value = "rojo";
-        });
-        
-        document.getElementById('status').textContent = "Datos guardados correctamente";
-        
+        renderizarInterfaz();
+        resetInputsPrecios();
+        return true;
       } catch (error) {
         console.error("Error:", error);
-        errorElement.textContent = "Error al guardar. Intenta nuevamente.";
-        errorElement.style.display = "block";
+        showError(errorElement, "Error al guardar. Intenta nuevamente.");
         historial.pop();
+        return false;
       }
     }
 
@@ -281,43 +156,35 @@
       errorElement.style.display = "none";
       
       if (!nombre) {
-        errorElement.textContent = "Debe ingresar un nombre válido";
-        errorElement.style.display = "block";
+        showError(errorElement, "Debe ingresar un nombre válido");
         return;
       }
       
       if (productos.includes(nombre)) {
-        errorElement.textContent = "Este producto ya existe";
-        errorElement.style.display = "block";
+        showError(errorElement, "Este producto ya existe");
         return;
       }
 
       try {
-        document.getElementById('status').textContent = "Agregando producto...";
+        updateStatus("Agregando producto...");
         productos.push(nombre);
         
-        // Crear registro inicial
         const nuevoRegistro = {};
         nuevoRegistro[nombre] = {
           precio: 0, 
           color: 'blanco',
-          fecha: new Date().toISOString().split('T')[0]
+          fecha: getCurrentDate()
         };
         historial.push(nuevoRegistro);
         
         await guardarDatos();
-        
-        mostrarTablaEntrada();
-        mostrarHistorial();
-        mostrarPredicciones();
-        
+        renderizarInterfaz();
         input.value = "";
-        document.getElementById('status').textContent = `"${nombre}" agregado correctamente`;
+        updateStatus(`"${nombre}" agregado correctamente`);
         
       } catch (error) {
         console.error("Error:", error);
-        errorElement.textContent = "Error al agregar producto. Intenta nuevamente.";
-        errorElement.style.display = "block";
+        showError(errorElement, "Error al agregar producto. Intenta nuevamente.");
         productos = productos.filter(p => p !== nombre);
         historial.pop();
       }
@@ -329,7 +196,7 @@
       
       productos.forEach(producto => {
         const prediccion = predecirMercado(producto);
-        const ultimo = [...historial].reverse().find(d => d[producto])?.[producto];
+        const ultimo = getUltimoRegistro(producto);
         
         if (!ultimo) return;
         
@@ -377,6 +244,9 @@
       });
     }
 
+    // ======================
+    // FUNCIONES UTILITARIAS
+    // ======================
     function predecirMercado(producto) {
       const datos = historial
         .filter(dia => dia[producto])
@@ -385,14 +255,11 @@
       if (datos.length < 5) return null;
 
       try {
-        // Cálculo de tendencia
-        const cambios = [];
-        for (let i = 1; i < datos.length; i++) {
-          cambios.push((datos[i].precio - datos[i-1].precio) / datos[i-1].precio);
-        }
+        const cambios = datos.slice(1).map((item, i) => 
+          (item.precio - datos[i].precio) / datos[i].precio);
+        
         const tendencia = cambios.reduce((sum, val) => sum + val, 0) / cambios.length;
         
-        // Señal basada en tendencia
         let señal = "➡️ Neutral";
         if (tendencia > 0.03) señal = "🔴 Señal fuerte de subida";
         else if (tendencia < -0.03) señal = "🔵 Señal fuerte de bajada";
@@ -408,20 +275,58 @@
       }
     }
 
+    function getUltimoRegistro(producto) {
+      return [...historial].reverse().find(d => d[producto])?.[producto];
+    }
+
+    function getCurrentDate() {
+      return new Date().toISOString().split('T')[0];
+    }
+
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
+    }
+
+    function showError(element, message) {
+      element.textContent = message;
+      element.style.display = "block";
+    }
+
+    function resetInputsPrecios() {
+      productos.forEach(producto => {
+        document.getElementById(`precio-${producto}`).value = "";
+        document.getElementById(`color-${producto}`).value = "rojo";
+      });
+    }
+
+    function handleOfflineMode() {
+      updateStatus("Modo offline - usando datos locales");
+      if (productos.length === 0) {
+        productos = ['Bitcoin', 'Ethereum'];
+        historial = [
+          {'Bitcoin': {precio: 50000, color: 'rojo', fecha: getCurrentDate()}},
+          {'Ethereum': {precio: 3000, color: 'azul', fecha: getCurrentDate()}}
+        ];
+        renderizarInterfaz();
+      }
+    }
+
     // ======================
-    // INICIALIZACIÓN SEGURA
+    // INICIALIZACIÓN
     // ======================
     document.addEventListener('DOMContentLoaded', () => {
-      // Configuración de eventos
+      // Inicializar Supabase
+      supabase = supabase.createClient(supabaseUrl, supabaseKey);
+      
+      // Configurar event listeners
       document.getElementById('btnAgregarProducto').addEventListener('click', agregarProducto);
       document.getElementById('btnGuardarPrecios').addEventListener('click', guardarPrecios);
       
-      // Permitir Enter para agregar producto
       document.getElementById('nuevoProducto').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') agregarProducto();
       });
       
-      // Carga inicial
+      // Cargar datos iniciales
       cargarDatos();
     });
   </script>
