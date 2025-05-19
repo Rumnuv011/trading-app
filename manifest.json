@@ -1,13 +1,9 @@
 {
-  "name": "Trading Predictivo",
-  "short_name": "TradingApp",
-  "start_url": "/",
+  "name": "Trading Predictivo Pro",
+  "short_name": "TradingPro",
+  "start_url": ".",
   "display": "standalone",
-  "background_color": "#f0f2f5",
   "theme_color": "#333",
-  "icons": [{
-    "src": "icon.png",
-    "sizes": "192x192",
-    "type": "image/png"
-  }]
+  "background_color": "#f0f2f5",
+  "icons": []
 }
